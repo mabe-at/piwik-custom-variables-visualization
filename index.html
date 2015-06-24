@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Piwik Custom Variable Visualization</title>
+		<link rel="stylesheet" href="http://yui.yahooapis.com/pure/0.6.0/pure-min.css">
+		<link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css">
+		<style>
+			body { background:#fff;color:#424242;font-size:10pt; }
+			#header { background:#eee; }
+			.pure-g > div {
+			-webkit-box-sizing: border-box;
+			-moz-box-sizing: border-box;
+			box-sizing: border-box;
+			}
+			.l-box {
+			padding: 1em;
+			}
+			html, button, input, select, textarea,
+			.pure-g [class *= "pure-u"] {
+			font-family: sans-serif;
+			}
+			legend, button { font-weight:bold; }
+		</style>
+		<link rel="stylesheet" href="pickadate/lib/themes/default.css" id="theme_base">
+		<link rel="stylesheet" href="pickadate/lib/themes/default.date.css" id="theme_date">
+		<link rel="stylesheet" href="pickadate/lib/themes/default.time.css" id="theme_time">
+		<script src="http://code.jquery.com/jquery-1.11.3.min.js"></script>
+		<script src="pickadate/lib/picker.js"></script>
+		<script src="pickadate/lib/picker.date.js"></script>
+		<script src="pickadate/lib/picker.time.js"></script>
+		<script src="pickadate/lib/legacy.js"></script>
+		<script src="http://code.highcharts.com/highcharts.js"></script>
+		<!-- <script src="http://code.highcharts.com/modules/exporting.js"></script> -->
+		<script type="text/javascript">
+			var datestart, dateend;
+			$(function() {
+				datestart = $('#i-datestart').pickadate({
+					onClose: function() {
+						$(document.activeElement).blur()
+					}
+				});
+				dateend = $('#i-dateend').pickadate({
+					onClose: function() {
+						$(document.activeElement).blur()
+					}
+				});
+				
+				datestart.pickadate('picker').set('select', new Date());
+				dateend.pickadate('picker').set('select', new Date());
+				parser = document.createElement('a');
+				
+				$('#i-datestart').change(function() {
+					var ds = datestart.pickadate('picker').get('select','yyyymmdd');
+					var de = dateend.pickadate('picker').get('select','yyyymmdd');
+					if (ds == "") {
+						datestart.pickadate('picker').set('select', dateend.pickadate('picker').get('select'));
+						return;
+					}
+					if (de < ds) {
+						dateend.pickadate('picker').set('select', datestart.pickadate('picker').get('select'));
+					}
+				});
+				$('#i-dateend').change(function() {
+					var ds = datestart.pickadate('picker').get('select','yyyymmdd');
+					var de = dateend.pickadate('picker').get('select','yyyymmdd');
+					if (de == "") {
+						dateend.pickadate('picker').set('select', datestart.pickadate('picker').get('select'));
+						return;
+					}
+					if (ds > de) {
+						datestart.pickadate('picker').set('select', dateend.pickadate('picker').get('select'));
+					}
+				});
+				
+				$('#b-link').click(function() {
+						parser.href = $('#i-link').val();
+						$('#i-url').val(parser.protocol + "//" + parser.host + parser.pathname);
+						$('#i-token').val(getParam('token_auth',parser.search));
+						$('#i-site').val(getParam('idSite',parser.search));
+						$('#i-limit').val(getParam('filter_limit',parser.search));
+						setDateStart(getParam('date',parser.search));
+						setDateEnd(getParam('date',parser.search));
+						compute();
+			 			return false;
+				});
+				$('#b-param').click(function() {
+					var l = $('#i-url').val();
+					l = l + "?module=API&method=CustomVariables.getCustomVariables&format=JSON&flat=1&include_aggregate_rows=1";
+					l = l + "&idSite=" + $('#i-site').val();
+					l = l + "&token_auth=" + $('#i-token').val();
+					l = l + "&filter_limit=" + $('#i-limit').val();
+					l = l + "&period=range&date=" + datestart.pickadate('picker').get('select', 'yyyy-mm-dd') + "," + dateend.pickadate('picker').get('select', 'yyyy-mm-dd');
+					$('#i-link').val(l);
+					compute();
+					return false;
+				});
+			});
+			
+			function setDateStart(dates) {
+				var ds = dates.split(",");
+				if (ds.length > 0) {
+					datestart.pickadate('picker').set('select', new Date(ds[0]));
+				}
+			}
+			
+			function setDateEnd(dates) {
+				var ds = dates.split(",");
+				if (ds.length > 1) {
+					dateend.pickadate('picker').set('select', new Date(ds[1]));
+				}
+			}
+			
+			function getParam(param, query){
+				var pattern = new RegExp(param + "=([^&]+)")
+				var result = pattern.exec(query);
+				if (result) {
+					return result[1] + "";
+				}
+				return "";
+			}
+			
+			function compute() {
+				
+				$.ajaxSetup({ 
+					scriptCharset: "UTF-8" , 
+					contentType: "application/json; charset=UTF-8",
+					type:"GET"
+				});
+				$.ajax({
+					url: $('#i-link').val(),
+					crossDomain:true,
+					dataType : 'jsonp',
+					success : function(jsonData){
+						clearData();
+						jsonData.forEach(function(item) {
+							if(item.is_aggregate && item.is_aggregate == 1) {
+								showData(item, jsonData);
+							}
+						});
+					},
+					error : function(){
+							console.log("Error");  
+					},
+					statusCode: {
+						403: function() {
+							console.log("403");
+						},
+						404: function() {
+							console.log("404");
+						},
+						500: function() {
+							console.log("Server Error");
+						}
+					}
+				});
+			}
+			
+			function clearData() {
+				$('#playground').empty();
+			}
+			
+			function showData(item, jsonData) {
+				var $div = $( "<div/>" );
+				$('#playground').append($div);
+				
+				var serie = {
+					type: 'pie',
+					data: [
+						]
+				};
+				
+				var datas = {};
+				
+				var catPattern = new RegExp("^" + item.label + "\\s*-\\s*");
+				var valPattern = new RegExp($('#i-delimiter').val());
+				jsonData.forEach(function(entry) {
+					if(entry.label.match(catPattern) && entry.is_aggregate == 0) {
+						var val = entry.label.replace(catPattern, "");
+						var vals = val.split(valPattern);
+						vals.forEach(function(valName) {
+							if(!datas.hasOwnProperty(valName)) {
+								datas[valName] = 0;
+							}
+							datas[valName] += entry.nb_actions;
+						});
+					}
+				});
+				
+				for(var valName in datas) {
+					serie.data.push(new Array(valName, datas[valName]));
+				}
+				$div.highcharts({
+					chart: {
+						plotBackgroundColor: null,
+						plotBorderWidth: null,
+						plotShadow: false
+					},
+					title: {
+						text: item.label
+					},
+					subtitle: {
+						text: datestart.pickadate('picker').get('select','dd.mm.yyyy') + " - " + dateend.pickadate('picker').get('select','dd.mm.yyyy') + ", <b>" + item.nb_actions + " Visit(s)</b>"
+					},
+					plotOptions: {
+						pie: {
+							allowPointSelect: true,
+							cursor: 'pointer',
+							dataLabels: {
+								enabled: true,
+								format: '<b>{point.name}</b>: {point.percentage:.1f} %',
+								style: {
+									color: (Highcharts.theme && Highcharts.theme.contrastTextColor) || 'black'
+								}
+							}
+						}
+					},
+					series: [ serie ]
+				});
+			} 
+			
+		</script>
+	</head>
+	<body>
+		<div class="pure-g">
+			<div id="header" class="pure-u-1 l-box">
+				<form class="pure-form">
+					<fieldset>
+						<button class="pure-button pure-button-primary" id="b-link" style="float: right"><i class="fa fa-angle-double-right fa-lg"></i></button>
+						<div style="overflow: hidden; padding-right: .5em;">
+							<input  type="text" id="i-link" name="i-link" placeholder="API-Link" style="width: 100%;">
+						</div>
+					</fieldset>
+				</form>
+			</div>
+			<div id="nav" class="pure-u-1-4 l-box">
+				<form class="pure-form pure-form-stacked">
+					<fieldset>
+						<legend>Parameters</legend>
+						<label for="i-url">Base Url</label> <input type="text" id="i-url" name="i-url" class="pure-u-1">
+						<label for="i-token">Auth Token</label> <input type="text" id="i-token" name="i-token" class="pure-u-1">
+						<label for="i-site">Site Id</label> <input type="number" id="i-site" name="i-site" class="pure-u-1" value="1">
+						<label for="i-datestart">Date Start</label> <input type="text" id="i-datestart" name="i-datestart" class="pure-u-1">
+						<label for="i-dateend">Date End</label> <input type="text" id="i-dateend" name="i-dateend" class="pure-u-1">
+						<label for="i-limit">Filter Limit</label> <input type="number" id="i-limit" name="i-limit" class="pure-u-1" value="1000">
+						<label for="i-delimiter">Delimiter</label> <input type="text" id="i-delimiter" name="i-delimiter" class="pure-u-1" value="\s*,\s*">
+						<button class="pure-button pure-button-primary" id="b-param"><i class="fa fa-angle-double-right fa-lg"></i></button>
+					</fieldset>
+				</form>
+			</div>
+			<div class="pure-u-3-4 l-box">
+				<h1>Piwik Custom Variable Visualization</h1>
+				<div id="playground"></div>
+			</div>
+		</div>
+	</body>
+</html>
