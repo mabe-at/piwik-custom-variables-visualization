@@ -7,5 +7,5 @@ Use link to JSON-Export of your custom variables or insert suitable parameters.
 * Font Awesome, probably an overkill, as it is only used for one icon ;) (http://fortawesome.github.io/Font-Awesome/)
 * Highcharts (http://www.highcharts.com/)
 * jQuery (https://jquery.com/)
-* pickadate.js (http://amsul.ca/pickadate.js/)
+* pickadate.js, added as submodule (http://amsul.ca/pickadate.js/)
 * Pure (http://purecss.io/)
