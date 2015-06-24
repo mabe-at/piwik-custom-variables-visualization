@@ -1,7 +1,7 @@
 # piwik-custom-variables-visualization
 Visualize Piwik custom variables
 
-Use link to JSON-Export of your custom variables or input suitable parameters.
+Use link to JSON-Export of your custom variables or insert suitable parameters.
 
 ## Used modules/software
 * Font Awesome, probably an overkill, as it is only used for one icon ;) (http://fortawesome.github.io/Font-Awesome/)
